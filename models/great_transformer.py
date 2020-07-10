@@ -1,5 +1,6 @@
 import tensorflow as tf
-import util
+
+from . import util
 
 
 class AttentionLayer(tf.keras.layers.Layer):
@@ -39,13 +40,15 @@ class AttentionLayer(tf.keras.layers.Layer):
 		context = tf.einsum('btha,had->btd', context, self.weight_out)
 		return context
 	
+	# Compute key, query and value vectors.
 	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None, None), dtype=tf.float32), tf.TensorSpec(shape=(None, None, None), dtype=tf.float32)])
 	def compute_qkv(self, states, key_states):
 		query = tf.einsum('btd,dha->btha', states, self.attn_query) # Queries are always computed on states
-		keys = tf.einsum('btd,dha->btha', states if key_states is None else key_states, self.attn_keys)
-		values = tf.einsum('btd,dha->btha', states if key_states is None else key_states, self.attn_values)
+		keys = tf.einsum('btd,dha->btha', key_states, self.attn_keys)
+		values = tf.einsum('btd,dha->btha', key_states, self.attn_values)
 		return query, keys, values
 	
+	# Compute attention weights from cross-product between keys and queries (scaled, masked, softmaxed).
 	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32), tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32), tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32), tf.TensorSpec(shape=(None, 4), dtype=tf.int32)])
 	def get_attention_weights(self, query, keys, masks, attention_bias):
 		alpha = tf.einsum('bkha,bqha->bhqk', keys, query)
@@ -62,16 +65,16 @@ class AttentionLayer(tf.keras.layers.Layer):
 			bias = tf.scatter_nd(attention_bias[:, 1:], bias, bias_shape)
 			
 			# Since bias is a scalar, we can reduce memory cost by rewriting the attention from (q + b) * k to q*k + b*reduce_sum(k, -1)
-			keys = tf.reduce_sum(keys, -1) # bkh
-			bias = tf.einsum('bqk,bkh->bhqk', bias, keys)
+			summed_keys = tf.reduce_sum(keys, -1) # bkh
+			bias = tf.einsum('bqk,bkh->bhqk', bias, summed_keys)
 			# Accordingly, simply add the bias as a residual to standard dot-product attention.
 			alpha += bias
 		
 		# Scale and apply mask
 		alpha *= tf.math.rsqrt(tf.cast(self.attention_dim_per_head, "float32"))
-		if masks is not None:
-			alpha = alpha * masks + (1.0 - tf.math.ceil(masks)) * tf.float32.min
+		alpha = alpha * masks + (1.0 - tf.math.ceil(masks)) * tf.float32.min
 		alpha = tf.nn.softmax(alpha)
+		alpha *= masks
 		return alpha
 
 class LayerNormalization(tf.keras.layers.Layer):
@@ -84,6 +87,7 @@ class LayerNormalization(tf.keras.layers.Layer):
 		self.bias = tf.Variable(tf.zeros(self.hidden_dim))
 		self.build = True
 	
+	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None, None), dtype=tf.float32), tf.TensorSpec(shape=(), dtype=tf.float32)])
 	def call(self, x, epsilon=1e-3):
 		mean, variance = tf.nn.moments(x, -1, keepdims=True)
 		norm_x = (x - mean) * tf.math.rsqrt(variance + epsilon)
@@ -97,30 +101,28 @@ class Transformer(tf.keras.layers.Layer):
 	"""
 	NOOP_BIAS = tf.zeros((0, 4), 'int32')
 	
-	def __init__(self, model_config, vocab_dim, is_encoder_decoder=False, shared_embedding=None, bias_dim=None):
+	def __init__(self, model_config, bias_dim=None, shared_embedding=None, vocab_dim=None, is_encoder_decoder=False):
 		super(Transformer, self).__init__()
-		self.vocab_dim = vocab_dim
 		self.bias_dim = bias_dim
 		self.is_encoder_decoder = is_encoder_decoder
-
-		self.embed_dim = model_config["embed_dim"]
 		self.hidden_dim = model_config["hidden_dim"]
-		assert self.embed_dim == self.hidden_dim, "Embedding and hidden dimension must be equal for Transformer."
 		self.ff_dim = model_config["ff_dim"]
 		self.attention_dim = model_config["attention_dim"]
 		self.num_layers = model_config["num_layers"]
 		self.num_heads = model_config["num_heads"]
 		self.dropout_rate = model_config["dropout_rate"]
 
-		# Allow reuse of an existing embedding variable, if provided.
+		# Initialize embedding variable in constructor to allow reuse by other models
 		if shared_embedding is not None:
 			self.embed = shared_embedding
+		elif vocab_dim is None:
+			raise ValueError("Pass either a vocabulary dimension or an embedding Variable")
 		else:
-			# Initialize embedding variable in constructor to allow reuse by other Transformers
 			random_init = tf.random_normal_initializer(stddev=self.hidden_dim ** -0.5)
-			self.embed = tf.Variable(random_init([self.vocab_dim, self.embed_dim]), dtype=tf.float32)
+			self.embed = tf.Variable(random_init([vocab_dim, self.hidden_dim]), dtype=tf.float32)
+		
 		# Initialize default positional encoding for very long sequences. Can make this a parameter if necessary.
-		self.pos_enc = tf.constant(util.positional_encoding(model_config["embed_dim"], 5000))
+		self.pos_enc = tf.constant(util.positional_encoding(self.hidden_dim, 5000))
 	
 	def build(self, _):
 		# Set up multi-headed attention, and feed-forward layers.
@@ -143,7 +145,7 @@ class Transformer(tf.keras.layers.Layer):
 		real_dropout_rate = self.dropout_rate * tf.cast(training, 'float32')  # Easier for distributed training than an explicit conditional
 		for ix in range(self.num_layers):
 			new_states = self.ln[ix][0](states)
-			new_states = self.attention[ix](states, states, masks, attention_bias)
+			new_states = self.attention[ix](new_states, new_states, masks, attention_bias)
 			new_states = tf.nn.dropout(new_states, rate=real_dropout_rate)
 			states += new_states
 			
