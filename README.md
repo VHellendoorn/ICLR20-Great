@@ -26,7 +26,7 @@ Since the models in this paper rely heavily on the presence of "edge" informatio
 ## Benchmark Results
 The following parameters ought to be held fixed for all models, most of which are set correctly by default in config.yml:
 
-- Each model is trained on 25 million samples (repeating the training data ~14 times) on functions up to 512 tokens (real tokens, not BPE).
+- Each model is trained on 25 million samples (repeating the training data ~14 times) on functions up to 512 tokens (real tokens, not BPE) <sup>1</sup>.
 - The models are evaluated every 250,000 (quarter million) samples on the same ~25,000 held-out samples.
 - Assessed on the full eval portion of the dataset, along the accuracy metrics described below.
 - Every model uses the same shared embedding and prediction layer (averaged sub-token embedding and two-pointer prediction) and differs only in how the embedding states are transformed into the states used to predict the location and repair by the model.
@@ -34,6 +34,8 @@ The following parameters ought to be held fixed for all models, most of which ar
 - Tentatively, at most 10 sub-tokens are included per token.
 - Using the same, referenced [dataset](https://github.com/google-research-datasets/great) which includes Python functions and a wide range of edge types.
 - Where possible, all models are run on a single *NVidia RTX Titan GPU* with 24GB of memory. If not the case, this should be noted; the memory size strongly dictates the batch size, which can make a large difference in ultimate performance.
+
+<sup>1</sup>: Note that this is substantially larger than the threshold in the paper (250 tokens); this increase is to support generalization to real bugs, which tend to occur in longer functions, and makes little difference in training time on this dataset (average functions span just ~100 tokens).
 
 The following results and variables should be reported for each run:
 
