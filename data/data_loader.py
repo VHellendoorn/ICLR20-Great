@@ -17,7 +17,10 @@ class DataLoader():
 		if mode == "train":
 			random.shuffle(file_paths)
 		ds = tf.data.Dataset.from_generator(self.to_batch, output_types=(tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32), args=(file_paths,))
-		if mode == "dev": ds = ds.take(self.config['max_valid_samples'])
+		if mode == "dev":
+			ds = ds.take(self.config['max_valid_samples'])
+		if mode == "train":
+			ds = ds.repeat()
 		ds = ds.prefetch(1)
 		return ds
 	
@@ -31,6 +34,7 @@ class DataLoader():
 		else:
 			raise ValueError("Mode % not supported for batching; please use \"train\", \"dev\", or \"eval\".")
 
+	# Creates a simple Python sample from a JSON object.
 	def to_sample(self, json_data):
 		def parse_edges(edges):
 			# Reorder edges to [edge type, source, target] and double edge type index to allow reverse edges
@@ -45,10 +49,12 @@ class DataLoader():
 		repair_candidates = [t for t in json_data["repair_candidates"] if isinstance(t, int)]
 		return (tokens, edges, error_location, repair_targets, repair_candidates)
 
+	# Creates Tensor batches from a set of files
 	def to_batch(self, file_paths):
 		def sample_len(sample):
 			return len(sample[0])
 		
+		# Generates a batch with similarly-sized sequences for efficiency
 		def make_batch(buffer):
 			pivot = sample_len(random.choice(buffer))
 			buffer = sorted(buffer, key=lambda b: abs(sample_len(b) - pivot))
@@ -85,6 +91,7 @@ class DataLoader():
 			
 			return buffer, (token_tensor, edge_tensor, error_location, repair_targets, repair_candidates)
 	
+		# Keep samples in a buffer that is (ideally) much larger than the batch size to allow efficient batching
 		buffer = []
 		for file_path in file_paths:
 			with open(file_path) as f:
@@ -99,6 +106,7 @@ class DataLoader():
 					buffer, batch = make_batch(buffer)
 					if not batch: continue
 					yield batch
+		# Drain the buffer upon completion
 		while buffer:
 			buffer, batch = make_batch(buffer)
 			if not batch: break

@@ -47,6 +47,8 @@ def train(data, config, model_path=None, log_path=None):
 			mbs += 1
 			tokens, edges, error_loc, repair_targets, repair_candidates = batch
 			token_mask = tf.clip_by_value(tf.reduce_sum(tokens, -1), 0, 1)
+			
+			# Track the first batch to allow proper restoration of models (i.e., after variables have been init'd) in Eager mode.
 			if first:
 				model(tokens, token_mask, edges, training=False) # Run the first batch to allow proper restore of parameters
 				print("Model initialized, training {:,} parameters".format(np.sum([np.prod(v.shape) for v in model.trainable_variables])))
@@ -71,16 +73,9 @@ def train(data, config, model_path=None, log_path=None):
 			samples = tf.shape(token_mask)[0]
 			prev_samples = tracker.get_samples()
 			curr_samples = tracker.update_samples(samples)
-			counts[0].update_state(samples)
-			counts[1].update_state(tf.reduce_sum(token_mask))
-			losses[0].update_state(loc_loss)
-			losses[1].update_state(rep_loss)
-			no_bug_pred_acc, bug_loc_acc, target_loc_acc, joint_acc = acs
-			accs[0].update_state(no_bug_pred_acc)
-			accs[1].update_state(bug_loc_acc)
-			accs[2].update_state(target_loc_acc)
-			accs[3].update_state(joint_acc)
-			
+			update_metrics(losses, accs, counts, token_mask, ls, acs)
+		
+			# Every few minibatches, print the recent training performance
 			if mbs % config["training"]["print_freq"] == 0:
 				avg_losses = ["{0:.3f}".format(l.result().numpy()) for l in losses]
 				avg_accs = ["{0:.2%}".format(a.result().numpy()) for a in accs]
@@ -88,6 +83,7 @@ def train(data, config, model_path=None, log_path=None):
 				[l.reset_states() for l in losses]
 				[a.reset_states() for a in accs]
 			
+			# Every valid_interval samples, run an evaluation pass and store the most recent model with its heldout accuracy
 			if prev_samples // config["data"]["valid_interval"] < curr_samples // config["data"]["valid_interval"]:
 				avg_accs = evaluate(data, config, model)
 				tracker.save_checkpoint(model, avg_accs)
@@ -96,7 +92,7 @@ def train(data, config, model_path=None, log_path=None):
 				else:
 					print("Step:", tracker.ckpt.step.numpy() + 1)
 
-def evaluate(data, config, model):
+def evaluate(data, config, model):  # Similar to train, just without gradient updates
 	losses = [tf.keras.metrics.Mean() for _ in range(2)]
 	accs = [tf.keras.metrics.Mean() for _ in range(4)]
 	counts = [tf.keras.metrics.Sum(dtype='int32') for _ in range(2)]
@@ -106,18 +102,7 @@ def evaluate(data, config, model):
 		
 		pointer_preds = model(tokens, token_mask, edges, training=True)
 		ls, acs = model.get_loss(pointer_preds, token_mask, error_loc, repair_targets, repair_candidates)
-		loc_loss, rep_loss = ls
-		no_bug_pred_acc, bug_loc_acc, target_loc_acc, joint_acc = acs
-		
-		samples = tf.shape(token_mask)[0]
-		counts[0].update_state(samples)
-		counts[1].update_state(tf.reduce_sum(token_mask))
-		losses[0].update_state(loc_loss)
-		losses[1].update_state(rep_loss)
-		accs[0].update_state(no_bug_pred_acc)
-		accs[1].update_state(bug_loc_acc)
-		accs[2].update_state(target_loc_acc)
-		accs[3].update_state(joint_acc)
+		update_metrics(losses, accs, counts, token_mask, ls, acs)
 		if counts[0].result() > config['data']['max_valid_samples']:
 			break
 	avg_accs = [a.result().numpy() for a in accs]
@@ -125,6 +110,24 @@ def evaluate(data, config, model):
 	avg_loss_str = ", ".join(["{0:.3f}".format(l.result().numpy()) for l in losses])
 	print("Evaluation result: seqs: {0}, tokens: {1}, loss: {2}, accs: {3}".format(counts[0].result().numpy(), counts[1].result().numpy(), avg_loss_str, avg_accs_str))
 	return avg_accs
+
+def get_metrics():
+	losses = [tf.keras.metrics.Mean() for _ in range(2)]
+	accs = [tf.keras.metrics.Mean() for _ in range(4)]
+	counts = [tf.keras.metrics.Sum(dtype='int32') for _ in range(2)]
+	return loss, accs, counts
+
+def update_metrics(losses, accs, counts, token_mask, ls, acs):
+	loc_loss, rep_loss = ls
+	no_bug_pred_acc, bug_loc_acc, target_loc_acc, joint_acc = acs
+	counts[0].update_state(tf.shape(token_mask)[0])
+	counts[1].update_state(tf.reduce_sum(token_mask))
+	losses[0].update_state(loc_loss)
+	losses[1].update_state(rep_loss)
+	accs[0].update_state(no_bug_pred_acc)
+	accs[1].update_state(bug_loc_acc)
+	accs[2].update_state(target_loc_acc)
+	accs[3].update_state(joint_acc)
 
 if __name__ == '__main__':
 	main()
