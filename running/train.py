@@ -70,16 +70,17 @@ def train(data, config, model_path=None, log_path=None):
 			optimizer.apply_gradients(list(zip(grads, model.trainable_variables)))
 
 			# Update statistics
+			num_buggy = tf.reduce_sum(tf.clip_by_value(error_loc, 0, 1))
 			samples = tf.shape(token_mask)[0]
 			prev_samples = tracker.get_samples()
 			curr_samples = tracker.update_samples(samples)
-			update_metrics(losses, accs, counts, token_mask, ls, acs)
+			update_metrics(losses, accs, counts, token_mask, ls, acs, num_buggy)
 		
 			# Every few minibatches, print the recent training performance
 			if mbs % config["training"]["print_freq"] == 0:
 				avg_losses = ["{0:.3f}".format(l.result().numpy()) for l in losses]
 				avg_accs = ["{0:.2%}".format(a.result().numpy()) for a in accs]
-				print("MB: {0}, seqs: {1}, tokens: {2}, loss: {3}, accs: {4}".format(mbs, curr_samples, counts[1].result().numpy(), ", ".join(avg_losses), ", ".join(avg_accs)))
+				print("MB: {0}, seqs: {1:,}, tokens: {2:,}, loss: {3}, accs: {4}".format(mbs, curr_samples, counts[1].result().numpy(), ", ".join(avg_losses), ", ".join(avg_accs)))
 				[l.reset_states() for l in losses]
 				[a.reset_states() for a in accs]
 			
@@ -102,13 +103,14 @@ def evaluate(data, config, model):  # Similar to train, just without gradient up
 		
 		pointer_preds = model(tokens, token_mask, edges, training=True)
 		ls, acs = model.get_loss(pointer_preds, token_mask, error_loc, repair_targets, repair_candidates)
-		update_metrics(losses, accs, counts, token_mask, ls, acs)
+		num_buggy = tf.reduce_sum(tf.clip_by_value(error_loc, 0, 1))
+		update_metrics(losses, accs, counts, token_mask, ls, acs, num_buggy)
 		if counts[0].result() > config['data']['max_valid_samples']:
 			break
 	avg_accs = [a.result().numpy() for a in accs]
 	avg_accs_str = ", ".join(["{0:.2%}".format(a) for a in avg_accs])
 	avg_loss_str = ", ".join(["{0:.3f}".format(l.result().numpy()) for l in losses])
-	print("Evaluation result: seqs: {0}, tokens: {1}, loss: {2}, accs: {3}".format(counts[0].result().numpy(), counts[1].result().numpy(), avg_loss_str, avg_accs_str))
+	print("Evaluation result: seqs: {0:,}, tokens: {1:,}, loss: {2}, accs: {3}".format(counts[0].result().numpy(), counts[1].result().numpy(), avg_loss_str, avg_accs_str))
 	return avg_accs
 
 def get_metrics():
@@ -117,17 +119,18 @@ def get_metrics():
 	counts = [tf.keras.metrics.Sum(dtype='int32') for _ in range(2)]
 	return loss, accs, counts
 
-def update_metrics(losses, accs, counts, token_mask, ls, acs):
+def update_metrics(losses, accs, counts, token_mask, ls, acs, num_buggy_samples):
 	loc_loss, rep_loss = ls
 	no_bug_pred_acc, bug_loc_acc, target_loc_acc, joint_acc = acs
-	counts[0].update_state(tf.shape(token_mask)[0])
+	num_samples = tf.shape(token_mask)[0]
+	counts[0].update_state(num_samples)
 	counts[1].update_state(tf.reduce_sum(token_mask))
 	losses[0].update_state(loc_loss)
 	losses[1].update_state(rep_loss)
-	accs[0].update_state(no_bug_pred_acc)
-	accs[1].update_state(bug_loc_acc)
-	accs[2].update_state(target_loc_acc)
-	accs[3].update_state(joint_acc)
+	accs[0].update_state(no_bug_pred_acc, sample_weight=num_samples - num_buggy_samples)
+	accs[1].update_state(bug_loc_acc, sample_weight=num_buggy_samples)
+	accs[2].update_state(target_loc_acc, sample_weight=num_buggy_samples)
+	accs[3].update_state(joint_acc, sample_weight=num_buggy_samples)
 
 if __name__ == '__main__':
 	main()
