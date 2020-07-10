@@ -1,6 +1,6 @@
 import tensorflow as tf
 
-from models import great_transformer, ggnn, rnn
+from models import great_transformer, ggnn, rnn, util
 
 class VarMisuseModel(tf.keras.layers.Layer):
 	def __init__(self, config, vocab_dim):
@@ -10,6 +10,9 @@ class VarMisuseModel(tf.keras.layers.Layer):
 		random_init = tf.random_normal_initializer(stddev=config["transformer"]["hidden_dim"] ** -0.5)
 		self.embed = tf.Variable(random_init([vocab_dim, config["transformer"]["hidden_dim"]]), dtype=tf.float32)
 		self.prediction = tf.keras.layers.Dense(2) # Two pointers: bug location and repair
+		
+		# Store for convenience
+		self.pos_enc = tf.constant(util.positional_encoding(config["transformer"]["hidden_dim"], 5000))
 		
 		# Next, parse the main 'model' from the config
 		desc = config['training']['model'].split(' ')
@@ -32,6 +35,12 @@ class VarMisuseModel(tf.keras.layers.Layer):
 		subtoken_embeddings = tf.nn.embedding_lookup(self.embed, tokens)
 		subtoken_embeddings *= tf.expand_dims(tf.cast(tf.clip_by_value(tokens, 0, 1), dtype='float32'), -1)
 		states = tf.reduce_mean(subtoken_embeddings, 2)
+		
+		# Track whether any position-aware model has processed the states. If not, add positional encoding (e.g. to GREAT and GGNN) to ensure 
+		# that they have sequential awareness. This is especially (but not solely) important because the default, non-buggy 'location' is the 0th token,
+		# which is hard to predict for e.g. Transformers and GGNNs without either sequential awareness or a special marker at that location.
+		if not self.stack or not isinstance(self.stack[0], rnn.RNN):
+			states += self.pos_enc[:tf.shape(states)[1]]
 		
 		# Pass states through all the models (may be empty) in the parsed stack.
 		for model in self.stack:

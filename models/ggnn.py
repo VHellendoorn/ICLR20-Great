@@ -11,7 +11,7 @@ class GGNN(tf.keras.layers.Layer):
 		self.num_layers = len(self.time_steps)
 		# The residuals index in the time-steps above offset by one (index 0 refers to the node embeddings).
 		# They describe short-cuts formatted as receiving layer: [sending layer] entries, e.g., {1: [0], 3: [0, 1]}
-		self.residuals = model_config["residuals"]
+		self.residuals = {str(k):v for k, v in model_config["residuals"].items()}  # Keys must be strings for TF checkpointing
 		self.hidden_dim = model_config["hidden_dim"]
 		self.add_type_bias = model_config["add_type_bias"]
 		self.dropout_rate = model_config["dropout_rate"]
@@ -39,8 +39,8 @@ class GGNN(tf.keras.layers.Layer):
 		self.rnns = [tf.keras.layers.GRUCell(self.hidden_dim) for _ in range(self.num_layers)]
 		for ix, rnn in enumerate(self.rnns):
 			# Initialize the GRUs input dimension based on whether any residuals will be passed in.
-			if ix in self.residuals:
-				rnn.build(self.hidden_dim*(1 + len(self.residuals[ix])))
+			if str(ix) in self.residuals:
+				rnn.build(self.hidden_dim*(1 + len(self.residuals[str(ix)])))
 			else:
 				rnn.build(self.hidden_dim)
 	
@@ -56,8 +56,8 @@ class GGNN(tf.keras.layers.Layer):
 		layer_states = [states]
 		for layer_no, steps in enumerate(self.time_steps):
 			for step in range(steps):
-				if layer_no in self.residuals:
-					residuals = [layer_states[ix] for ix in self.residuals[layer_no]]
+				if str(layer_no) in self.residuals:
+					residuals = [layer_states[ix] for ix in self.residuals[str(layer_no)]]
 				else:
 					residuals = None
 				new_states = self.propagate(layer_states[-1], layer_no, edge_type_ids, message_sources, message_targets, residuals=residuals)

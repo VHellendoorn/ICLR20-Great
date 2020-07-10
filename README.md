@@ -42,5 +42,6 @@ The following results and variables should be reported for each run:
 - The total number of parameters used by the model (printed at the start of training).
 - The maximum batch size in terms of total tokens; batchers are grouped by similar size for efficiency. Users are encouraged to use the default (12,500) for comparability.
 - The learning rate.
+- The model architecture (new innovations, with paper, are encouraged!) and hyper-parameters (e.g. hidden dimension)
 
 Results: W.I.P.
