@@ -20,6 +20,7 @@ def main():
 	ap.add_argument("-l", "--log", help="Path to store training log (optional)")
 	args = ap.parse_args()
 	config = yaml.safe_load(open(args.config))
+	print("Training with configuration:", config)
 	data = data_loader.DataLoader(args.data_path, config["data"], vocabulary.Vocabulary(args.vocabulary_path))
 	train(data, config, args.models, args.log)
 

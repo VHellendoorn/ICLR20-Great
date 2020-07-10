@@ -18,7 +18,7 @@ rnn:
   num_layers: 2
   dropout_rate: 0.1
 data:
-  max_batch_size: 10000
+  max_batch_size: 12500
   max_buffer_size: 50
   max_sequence_length: 512
   num_edge_types: 24

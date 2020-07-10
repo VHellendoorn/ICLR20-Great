@@ -46,11 +46,16 @@ class DataLoader():
 		return (tokens, edges, error_location, repair_targets, repair_candidates)
 
 	def to_batch(self, file_paths):
+		def sample_len(sample):
+			return len(sample[0])
+		
 		def make_batch(buffer):
+			pivot = sample_len(random.choice(buffer))
+			buffer = sorted(buffer, key=lambda b: abs(sample_len(b) - pivot))
 			batch = []
 			max_seq_len = 0
 			for sample in buffer:
-				max_seq_len = max(max_seq_len, len(sample[0]))
+				max_seq_len = max(max_seq_len, sample_len(sample))
 				if max_seq_len*(len(batch) + 1) > self.config['max_batch_size']:
 					break
 				batch.append(sample)
@@ -87,10 +92,10 @@ class DataLoader():
 			data = json.loads(json_data)
 			for d in data:
 				sample = self.to_sample(d)
-				if len(sample[0]) > self.config['max_sequence_length']:
+				if sample_len(sample) > self.config['max_sequence_length']:
 					continue
 				buffer.append(sample)
-				if sum(len(sample[0]) for l in buffer) > self.config['max_buffer_size']*self.config['max_batch_size']:
+				if sum(sample_len(sample) for l in buffer) > self.config['max_buffer_size']*self.config['max_batch_size']:
 					buffer, batch = make_batch(buffer)
 					if not batch: continue
 					yield batch

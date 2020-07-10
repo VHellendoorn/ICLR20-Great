@@ -27,17 +27,20 @@ Since the models in this paper rely heavily on the presence of "edge" informatio
 The following parameters ought to be held fixed for all models, most of which are set correctly by default in config.yml:
 
 - Each model is trained on 25 million samples (repeating the training data ~14 times) on functions up to 512 tokens (real tokens, not BPE).
-- The models are evaluated every 250,000 (quarter million) samples on (the same) 25,000 held-out samples.
-- Every model uses the same shared embedding and prediction layer (averaged sub-token embedding and two-pointer prediction) and differs only in how the embedding states are transformed into the states used to predict the location and repair (if applicable) by the model.
-- The same, included vocabulary is used containing the 14,280 BPE sub-tokens that occur at least 1,000 times in the training data (from tokens no longer than 15 characters).
-- Tentatively, at most 10 sub-tokens are considered
+- The models are evaluated every 250,000 (quarter million) samples on the same ~25,000 held-out samples.
+- Assessed on the full eval portion of the dataset, along the accuracy metrics described below.
+- Every model uses the same shared embedding and prediction layer (averaged sub-token embedding and two-pointer prediction) and differs only in how the embedding states are transformed into the states used to predict the location and repair by the model.
+- The included vocabulary is used, which contains the 14,280 BPE sub-tokens that occur at least 1,000 times in the training data (from tokens no longer than 15 characters).
+- Tentatively, at most 10 sub-tokens are included per token.
+- Using the same, referenced [dataset](https://github.com/google-research-datasets/great) which includes Python functions and a wide range of edge types.
 - Where possible, all models are run on a single *NVidia RTX Titan GPU* with 24GB of memory. If not the case, this should be noted; the memory size strongly dictates the batch size, which can make a large difference in ultimate performance.
 
-The following is reported for each run:
+The following results and variables should be reported for each run:
 
 - The highest accuracy reached in 100 steps in terms of: no bug prediction accuracy (indicates false alarm rate), bug localization accuracy, bug repair accuracy, and joint bug localization and repair accuracy.
 - The time needed to train on the full dataset *and* to train to converged accuracy (assumed to be the highest joint localization & accuracy reached in 100 steps).
 - The total number of parameters used by the model (printed at the start of training).
-- The maximum batch size in terms of total tokens; batchers are grouped by similar size for efficiency.
+- The maximum batch size in terms of total tokens; batchers are grouped by similar size for efficiency. Users are encouraged to use the default (12,500) for comparability.
+- The learning rate.
 
 Results: W.I.P.
