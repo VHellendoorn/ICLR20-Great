@@ -16,9 +16,7 @@ class DataLoader():
 		file_paths = [os.path.join(data_path, f) for f in os.listdir(data_path)]
 		if mode == "train":
 			random.shuffle(file_paths)
-		ds = tf.data.Dataset.from_generator(self.to_batch, output_types=(tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32), args=(file_paths,))
-		if mode == "dev":
-			ds = ds.take(self.config['max_valid_samples'])
+		ds = tf.data.Dataset.from_generator(self.to_batch, output_types=(tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32), args=(file_paths, mode))
 		if mode == "train":
 			ds = ds.repeat()
 		ds = ds.prefetch(1)
@@ -50,7 +48,8 @@ class DataLoader():
 		return (tokens, edges, error_location, repair_targets, repair_candidates)
 
 	# Creates Tensor batches from a set of files
-	def to_batch(self, file_paths):
+	def to_batch(self, file_paths, mode):
+		if isinstance(mode, bytes): mode = mode.decode('utf-8')
 		def sample_len(sample):
 			return len(sample[0])
 		
@@ -91,31 +90,29 @@ class DataLoader():
 			
 			return buffer, (token_tensor, edge_tensor, error_location, repair_targets, repair_candidates)
 	
+		# Simple utility to flatten files into a stream of samples
+		def sample_gen():
+			for file_path in file_paths:
+				with open(file_path) as f:
+					json_data = f.read()
+				data = json.loads(json_data)
+				for d in data:
+					sample = self.to_sample(d)
+					if sample_len(sample) <= self.config['max_sequence_length']:
+						yield sample
+		
 		# Keep samples in a buffer that is (ideally) much larger than the batch size to allow efficient batching
 		buffer = []
-		for file_path in file_paths:
-			with open(file_path) as f:
-				json_data = f.read()
-			data = json.loads(json_data)
-			for d in data:
-				sample = self.to_sample(d)
-				if sample_len(sample) > self.config['max_sequence_length']:
-					continue
-				buffer.append(sample)
-				if sum(sample_len(sample) for l in buffer) > self.config['max_buffer_size']*self.config['max_batch_size']:
-					buffer, batch = make_batch(buffer)
-					if not batch: continue
-					yield batch
+		num_samples = 0
+		for sample in sample_gen():
+			buffer.append(sample)
+			num_samples += 1
+			if mode == 'dev' and num_samples >= self.config['max_valid_samples']:
+				break
+			if sum(sample_len(sample) for l in buffer) > self.config['max_buffer_size']*self.config['max_batch_size']:
+				buffer, batch = make_batch(buffer)
+				yield batch
 		# Drain the buffer upon completion
 		while buffer:
 			buffer, batch = make_batch(buffer)
-			if not batch: break
 			yield batch
-
-def main():
-	dl = DataLoader('../../great', {'max_valid_samples': 1000})
-	for b in dl.batcher(mode="dev"):
-		print(b)
-
-if __name__ == '__main__':
-	main()
