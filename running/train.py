@@ -94,6 +94,7 @@ def train(data, config, model_path=None, log_path=None):
 					print("Step:", tracker.ckpt.step.numpy() + 1)
 
 def evaluate(data, config, model):  # Similar to train, just without gradient updates
+	print("Running evaluation pass on heldout data")
 	losses = [tf.keras.metrics.Mean() for _ in range(2)]
 	accs = [tf.keras.metrics.Mean() for _ in range(4)]
 	counts = [tf.keras.metrics.Sum(dtype='int32') for _ in range(2)]

@@ -74,7 +74,7 @@ class DataLoader():
 			# Add batch axis to all edges and flatten
 			edge_batches = tf.repeat(tf.range(batch_dim), [len(edges) for edges in batch[1]])
 			edge_tensor = tf.concat(batch[1], axis=0)
-			edge_tensor = tf.stack([edge_tensor[:, 0], edge_batches, edge_tensor[:, 1], edge_tensor[:, 0]], axis=1)
+			edge_tensor = tf.stack([edge_tensor[:, 0], edge_batches, edge_tensor[:, 1], edge_tensor[:, 2]], axis=1)
 
 			# Error location is just a simple constant list
 			error_location = tf.constant(batch[2], dtype=tf.dtypes.int32)
