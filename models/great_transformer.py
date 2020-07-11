@@ -4,8 +4,7 @@ from . import util
 
 
 class AttentionLayer(tf.keras.layers.Layer):
-	"""
-		Implementation of multi-headed attention with optional edge-bias.
+	"""Implementation of multi-headed attention with optional edge-bias.
 		
 		This class supports self-attention and key-value attention, with (non-optional) masks. If bias_dim is not None, the attention computation(s) assumes that a (sparse) bias vector is provided, formatted like: (edge_type, batch_index, key_index, query_index). Bias edge types are embedded in the same dimension as each head's attention and projected to a scalar before being inserted into the attention computation as (q + b) * k.
 	"""
@@ -19,13 +18,13 @@ class AttentionLayer(tf.keras.layers.Layer):
 		self.bias_dim = bias_dim
 	
 	def build(self, _):
-		self.attn_query = self.add_weight(name='q', shape=(self.hidden_dim, self.num_heads, self.attention_dim_per_head), initializer="glorot_uniform")
-		self.attn_keys = self.add_weight(name='k', shape=(self.hidden_dim, self.num_heads, self.attention_dim_per_head), initializer="glorot_uniform")
-		self.attn_values = self.add_weight(name='v', shape=(self.hidden_dim, self.num_heads, self.attention_dim_per_head), initializer="glorot_uniform")
-		self.weight_out = self.add_weight(name='o', shape=(self.num_heads, self.attention_dim_per_head, self.hidden_dim), initializer="glorot_uniform")
+		self.attn_query = self.add_weight(name='q', shape=(self.hidden_dim, self.num_heads, self.attention_dim_per_head), initializer='glorot_uniform')
+		self.attn_keys = self.add_weight(name='k', shape=(self.hidden_dim, self.num_heads, self.attention_dim_per_head), initializer='glorot_uniform')
+		self.attn_values = self.add_weight(name='v', shape=(self.hidden_dim, self.num_heads, self.attention_dim_per_head), initializer='glorot_uniform')
+		self.weight_out = self.add_weight(name='o', shape=(self.num_heads, self.attention_dim_per_head, self.hidden_dim), initializer='glorot_uniform')
 		if self.bias_dim is not None:
-			self.bias_embs = self.add_weight(name='e1', shape=(self.bias_dim, self.attention_dim_per_head), initializer="glorot_uniform")
-			self.bias_scalar = self.add_weight(name='e2', shape=(self.attention_dim_per_head, 1), initializer="glorot_uniform")
+			self.bias_embs = self.add_weight(name='e1', shape=(self.bias_dim, self.attention_dim_per_head), initializer='glorot_uniform')
+			self.bias_scalar = self.add_weight(name='e2', shape=(self.attention_dim_per_head, 1), initializer='glorot_uniform')
 	
 	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None, None), dtype=tf.float32), tf.TensorSpec(shape=(None, None, None), dtype=tf.float32), tf.TensorSpec(shape=(None, None, None, None), dtype=tf.float32), tf.TensorSpec(shape=(None, 4), dtype=tf.int32)])
 	def call(self, states, key_states, masks, attention_bias):
@@ -71,7 +70,7 @@ class AttentionLayer(tf.keras.layers.Layer):
 			alpha += bias
 		
 		# Scale and apply mask
-		alpha *= tf.math.rsqrt(tf.cast(self.attention_dim_per_head, "float32"))
+		alpha *= tf.math.rsqrt(tf.cast(self.attention_dim_per_head, 'float32'))
 		alpha = alpha * masks + (1.0 - tf.math.ceil(masks)) * tf.float32.min
 		alpha = tf.nn.softmax(alpha)
 		alpha *= masks
@@ -97,26 +96,26 @@ class Transformer(tf.keras.layers.Layer):
 	"""Transformer language model: converts indices into hidden states through layers of multi-headed attention and feed-forward dense layers.
 	
 		Augments a generic Transformer with attentional bias, if bias_dim is provided. See documentation on AttentionLayer for more details.
-		To generate language from the resulting states, pass the states to the "predict" function. Note that it assumes that the input vocabulary is output vocabulary (i.e., it reuses the model's embedding table).
+		To generate language from the resulting states, pass the states to the 'predict' function. Note that it assumes that the input vocabulary is output vocabulary (i.e., it reuses the model's embedding table).
 	"""
 	NOOP_BIAS = tf.zeros((0, 4), 'int32')
 	
-	def __init__(self, model_config, bias_dim=None, shared_embedding=None, vocab_dim=None, is_encoder_decoder=False):
+	def __init__(self, model_config, shared_embedding=None, vocab_dim=None, is_encoder_decoder=False):
 		super(Transformer, self).__init__()
-		self.bias_dim = bias_dim
 		self.is_encoder_decoder = is_encoder_decoder
-		self.hidden_dim = model_config["hidden_dim"]
-		self.ff_dim = model_config["ff_dim"]
-		self.attention_dim = model_config["attention_dim"]
-		self.num_layers = model_config["num_layers"]
-		self.num_heads = model_config["num_heads"]
-		self.dropout_rate = model_config["dropout_rate"]
+		self.bias_dim = model_config['num_edge_types']
+		self.hidden_dim = model_config['hidden_dim']
+		self.ff_dim = model_config['ff_dim']
+		self.attention_dim = model_config['attention_dim']
+		self.num_layers = model_config['num_layers']
+		self.num_heads = model_config['num_heads']
+		self.dropout_rate = model_config['dropout_rate']
 
 		# Initialize embedding variable in constructor to allow reuse by other models
 		if shared_embedding is not None:
 			self.embed = shared_embedding
 		elif vocab_dim is None:
-			raise ValueError("Pass either a vocabulary dimension or an embedding Variable")
+			raise ValueError('Pass either a vocabulary dimension or an embedding Variable')
 		else:
 			random_init = tf.random_normal_initializer(stddev=self.hidden_dim ** -0.5)
 			self.embed = tf.Variable(random_init([vocab_dim, self.hidden_dim]), dtype=tf.float32)
@@ -136,7 +135,7 @@ class Transformer(tf.keras.layers.Layer):
 		self.ln_out = LayerNormalization(self.hidden_dim)
 		
 		# Two-layer feed-forward with wide layer in the middle
-		self.ff_1 = [tf.keras.layers.Dense(self.ff_dim, activation="relu") for _ in range(self.num_layers)]
+		self.ff_1 = [tf.keras.layers.Dense(self.ff_dim, activation='relu') for _ in range(self.num_layers)]
 		self.ff_2 = [tf.keras.layers.Dense(self.hidden_dim) for _ in range(self.num_layers)]
 	
 	# Default 'call' applies standard self-attention, with dropout if training=True.
@@ -183,7 +182,7 @@ class Transformer(tf.keras.layers.Layer):
 	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int32)])
 	def embed_inputs(self, inputs):
 		states = tf.nn.embedding_lookup(self.embed, inputs)
-		states *= tf.math.sqrt(tf.cast(tf.shape(states)[-1], "float32"))
+		states *= tf.math.sqrt(tf.cast(tf.shape(states)[-1], 'float32'))
 		states += self.pos_enc[:tf.shape(states)[1]]
 		return states
 	

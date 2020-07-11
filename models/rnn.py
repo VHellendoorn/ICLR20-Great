@@ -4,15 +4,15 @@ import tensorflow as tf
 class RNN(tf.keras.layers.Layer):
 	def __init__(self, model_config, shared_embedding=None, vocab_dim=None):
 		super(RNN, self).__init__()
-		self.hidden_dim = model_config["hidden_dim"]
-		self.num_layers = model_config["num_layers"]
-		self.dropout_rate = model_config["dropout_rate"]
+		self.hidden_dim = model_config['hidden_dim']
+		self.num_layers = model_config['num_layers']
+		self.dropout_rate = model_config['dropout_rate']
 		
 		# Initialize embedding variable in constructor to allow reuse by other models
 		if shared_embedding is not None:
 			self.embed = shared_embedding
 		elif vocab_dim is None:
-			raise ValueError("Pass either a vocabulary dimension or an embedding Variable")
+			raise ValueError('Pass either a vocabulary dimension or an embedding Variable')
 		else:
 			random_init = tf.random_normal_initializer(stddev=self.hidden_dim ** -0.5)
 			self.embed = tf.Variable(random_init([vocab_dim, self.hidden_dim]), dtype=tf.float32)
@@ -37,5 +37,5 @@ class RNN(tf.keras.layers.Layer):
 	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int32)])
 	def embed_inputs(self, inputs):
 		states = tf.nn.embedding_lookup(self.embed, inputs)
-		states *= tf.math.sqrt(tf.cast(tf.shape(states)[-1], "float32"))
+		states *= tf.math.sqrt(tf.cast(tf.shape(states)[-1], 'float32'))
 		return states

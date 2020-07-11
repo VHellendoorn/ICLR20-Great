@@ -25,7 +25,7 @@ def main():
 	train(data, config, args.models, args.log)
 
 def train(data, config, model_path=None, log_path=None):
-	model = VarMisuseModel(config, data.vocabulary.vocab_dim)
+	model = VarMisuseModel(config['model'], data.vocabulary.vocab_dim)
 	optimizer = tf.optimizers.Adam(config["training"]["learning_rate"])
 
 	# Restore model from checkpoints if present; also sets up logger
