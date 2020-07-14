@@ -19,11 +19,11 @@ model:
     num_heads: 8
 data:
   max_batch_size: 12500
-  max_buffer_size: 50
+  max_buffer_size: 50  # In terms of no. of (maximum efficiency) batches.
   max_sequence_length: 512
   valid_interval: 250000
   max_valid_samples: 25000
-  max_token_length: 10
+  max_token_length: 10  # In terms of (BPE) sub-tokens.
 training:
   max_steps: 100
   print_freq: 25
