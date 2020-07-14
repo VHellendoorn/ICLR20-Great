@@ -6,7 +6,7 @@ This repository will also serve as the [*public benchmark*](#benchmark) for any 
 ## Quick Start
 The modeling code is written in Python (3.6+) and uses Tensorflow (recommended 2.2.x+). For a quick setup, run `pip install -r requirements.txt`.
 
-To run training, first clone the [data repository](https://github.com/google-research-datasets/great) and note its location (lets call it `*data_dir*`). Then, from the main directory of this repository, run: `python train.py *data_dir* vocab.txt config.yml`, to train the model configuration specified in `config.yml`, periodically writing checkpoints (to `models/` and evaluation results (to `log.txt`). Both output paths can be optionally set with `-m` and `-l` respectively.
+To run training, first clone the [data repository](https://github.com/google-research-datasets/great) and note its location (lets call it `*data_dir*`). Then, from the main directory of this repository, run: `python running/train.py *data_dir* vocab.txt config.yml`, to train the model configuration specified in `config.yml`, periodically writing checkpoints (to `models/` and evaluation results (to `log.txt`). Both output paths can be optionally set with `-m` and `-l` respectively.
 
 To customize the model configuration, you can change both the hyper-parameters for the various model types available (transformer, GREAT, GGNN, RNN) in `config.yml`, and the overall model architecture itself under `model: configuration`. For instance, to train the RNN Sandwich architecture from our paper, set the RNN and GGNN layers to reasonable values (e.g. RNN to  2 layers and the GGNN's `time_steps` to \[3, 1\] layers as in the paper) and specify the model configuration: `rnn ggnn rnn ggnn rnn`.
 
