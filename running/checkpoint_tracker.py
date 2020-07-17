@@ -11,16 +11,16 @@ class Tracker(object):
 		self.manager = tf.train.CheckpointManager(self.ckpt, self.model_path, max_to_keep=None)
 		self.log = []
 	
-	def restore(self, best_only=False):
+	def restore(self, best_model=False):
 		if self.manager.checkpoints and os.path.exists(self.log_path):
 			with open(self.log_path) as f:
 				for l in f:
 					l = l.rstrip().split(': ')
 					scores = [float(v.replace('%', ''))/100 if '%' in v else v for v in l[1].split(',')]
 					self.log.append((l[0], scores))
-			if best_only:
-				best = max(enumerate(self.log), key=lambda e: e[1][1][-1])[0]
-				status = self.ckpt.restore(self.manager.checkpoints[best]) # TODO: select best from log instead
+			if best_model:
+				best = max(enumerate(self.log), key=lambda e: e[1][1][-1])[0]  # [-1] simply pulls the last accuracy value, which is the joint loc & rep accuracy
+				status = self.ckpt.restore(self.manager.checkpoints[best])
 			else:
 				status = self.ckpt.restore(self.manager.latest_checkpoint)
 			status.assert_existing_objects_matched()

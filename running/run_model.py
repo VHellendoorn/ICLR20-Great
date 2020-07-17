@@ -9,7 +9,7 @@ import tensorflow as tf
 
 from checkpoint_tracker import Tracker
 from data import data_loader, vocabulary
-from model_parser import VarMisuseModel
+from meta_model import VarMisuseModel
 
 def main():
 	ap = argparse.ArgumentParser()
@@ -18,14 +18,29 @@ def main():
 	ap.add_argument("config", help="Path to config file")
 	ap.add_argument("-m", "--models", help="Directory to store trained models (optional)")
 	ap.add_argument("-l", "--log", help="Path to store training log (optional)")
+	ap.add_argument("-e", "--eval_only", help="Whether to run just the final model evaluation")
 	args = ap.parse_args()
 	config = yaml.safe_load(open(args.config))
 	print("Training with configuration:", config)
 	data = data_loader.DataLoader(args.data_path, config["data"], vocabulary.Vocabulary(args.vocabulary_path))
-	train(data, config, args.models, args.log)
+	if args.eval_only:
+		if args.models is None or args.log is None:
+			raise ValueError("Must provide a path to pre-trained models when running final evaluation")
+		test(data, config, args.models, args.log)
+	else:
+		train(data, config, args.models, args.log)
+
+def test(data, config, model_path, log_path):
+	model = VarMisuseModel(config['model'], data.vocabulary.vocab_dim)
+	model.run_dummy_input()
+	tracker = Tracker(model, model_path, log_path)
+	tracker.restore(best_model=True)
+	evaluate(data, config, model, is_heldout=False)
 
 def train(data, config, model_path=None, log_path=None):
 	model = VarMisuseModel(config['model'], data.vocabulary.vocab_dim)
+	model.run_dummy_input()
+	print("Model initialized, training {:,} parameters".format(np.sum([np.prod(v.shape) for v in model.trainable_variables])))
 	optimizer = tf.optimizers.Adam(config["training"]["learning_rate"])
 
 	# Restore model from checkpoints if present; also sets up logger
@@ -33,31 +48,20 @@ def train(data, config, model_path=None, log_path=None):
 		tracker = Tracker(model)
 	else:
 		tracker = Tracker(model, model_path, log_path)
-
-	first = True
+	tracker.restore()
+	if tracker.ckpt.step.numpy() > 0:
+		print("Restored from step:", tracker.ckpt.step.numpy() + 1)
+	else:
+		print("Step:", tracker.ckpt.step.numpy() + 1)
+	
 	mbs = 0
-	losses = [tf.keras.metrics.Mean() for _ in range(2)]
-	accs = [tf.keras.metrics.Mean() for _ in range(4)]
-	counts = [tf.keras.metrics.Sum(dtype='int32') for _ in range(2)]
+	losses, accs, counts = get_metrics()
 	while tracker.ckpt.step < config["training"]["max_steps"]:
-		if not first:
-			print("Step:", tracker.ckpt.step.numpy() + 1)
 		# These are just for console logging, not global counts
 		for batch in data.batcher(mode='train'):
 			mbs += 1
 			tokens, edges, error_loc, repair_targets, repair_candidates = batch
 			token_mask = tf.clip_by_value(tf.reduce_sum(tokens, -1), 0, 1)
-			
-			# Track the first batch to allow proper restoration of models (i.e., after variables have been init'd) in Eager mode.
-			if first:
-				model(tokens, token_mask, edges, training=False) # Run the first batch to allow proper restore of parameters
-				print("Model initialized, training {:,} parameters".format(np.sum([np.prod(v.shape) for v in model.trainable_variables])))
-				tracker.restore()
-				if tracker.ckpt.step.numpy() > 0:
-					print("Restored from step:", tracker.ckpt.step.numpy() + 1)
-				else:
-					print("Step:", tracker.ckpt.step.numpy() + 1)
-				first = False
 			
 			with tf.GradientTape() as tape:
 				pointer_preds = model(tokens, token_mask, edges, training=True)
@@ -93,21 +97,24 @@ def train(data, config, model_path=None, log_path=None):
 				else:
 					print("Step:", tracker.ckpt.step.numpy() + 1)
 
-def evaluate(data, config, model):  # Similar to train, just without gradient updates
-	print("Running evaluation pass on heldout data")
-	losses = [tf.keras.metrics.Mean() for _ in range(2)]
-	accs = [tf.keras.metrics.Mean() for _ in range(4)]
-	counts = [tf.keras.metrics.Sum(dtype='int32') for _ in range(2)]
-	for batch in data.batcher(mode='dev'):
+def evaluate(data, config, model, is_heldout=True):  # Similar to train, just without gradient updates
+	if is_heldout:
+		print("Running evaluation pass on heldout data")
+	else:
+		print("Testing pre-trained model on full eval data")
+	
+	losses, accs, counts = get_metrics()
+	for batch in data.batcher(mode='dev' if is_heldout else 'eval'):
 		tokens, edges, error_loc, repair_targets, repair_candidates = batch		
 		token_mask = tf.clip_by_value(tf.reduce_sum(tokens, -1), 0, 1)
 		
-		pointer_preds = model(tokens, token_mask, edges, training=True)
+		pointer_preds = model(tokens, token_mask, edges, training=False)
 		ls, acs = model.get_loss(pointer_preds, token_mask, error_loc, repair_targets, repair_candidates)
 		num_buggy = tf.reduce_sum(tf.clip_by_value(error_loc, 0, 1))
 		update_metrics(losses, accs, counts, token_mask, ls, acs, num_buggy)
-		if counts[0].result() > config['data']['max_valid_samples']:
+		if is_heldout and counts[0].result() > config['data']['max_valid_samples']:
 			break
+
 	avg_accs = [a.result().numpy() for a in accs]
 	avg_accs_str = ", ".join(["{0:.2%}".format(a) for a in avg_accs])
 	avg_loss_str = ", ".join(["{0:.3f}".format(l.result().numpy()) for l in losses])
@@ -118,7 +125,7 @@ def get_metrics():
 	losses = [tf.keras.metrics.Mean() for _ in range(2)]
 	accs = [tf.keras.metrics.Mean() for _ in range(4)]
 	counts = [tf.keras.metrics.Sum(dtype='int32') for _ in range(2)]
-	return loss, accs, counts
+	return losses, accs, counts
 
 def update_metrics(losses, accs, counts, token_mask, ls, acs, num_buggy_samples):
 	loc_loss, rep_loss = ls

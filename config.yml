@@ -8,9 +8,9 @@ model:
     num_layers: 2
   ggnn:
     time_steps: [3, 1, 3, 1]
-    residuals:
-      1: [0]
-      3: [0, 1]
+    residuals:  # Note: keys must be strings for TF checkpointing
+      "1": [0]
+      "3": [0, 1]
     add_type_bias: true
   transformer:
     ff_dim: 2048

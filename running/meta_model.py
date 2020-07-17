@@ -108,3 +108,7 @@ class VarMisuseModel(tf.keras.layers.Layer):
 		# Also store the joint localization and repair accuracy -- arguably the most important metric.
 		joint_acc = tf.reduce_sum(is_buggy * loc_accs * rep_accs) / (1e-9 + tf.reduce_sum(is_buggy))  # Only on errors
 		return (loc_loss, target_loss), (no_bug_pred_acc, bug_loc_acc, target_loc_acc, joint_acc)
+	
+	# Used to initialize the model's variables
+	def run_dummy_input(self):
+		self(tf.ones((3,3,10), dtype='int32'), tf.ones((3,3), dtype='int32'), tf.ones((2,4), dtype='int32'), True)

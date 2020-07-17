@@ -11,7 +11,7 @@ class GGNN(tf.keras.layers.Layer):
 		self.num_layers = len(self.time_steps)
 		# The residuals index in the time-steps above offset by one (index 0 refers to the node embeddings).
 		# They describe short-cuts formatted as receiving layer: [sending layer] entries, e.g., {1: [0], 3: [0, 1]}
-		self.residuals = {str(k):v for k, v in model_config['residuals'].items()}  # Keys must be strings for TF checkpointing
+		self.residuals = model_config['residuals']
 		self.hidden_dim = model_config['hidden_dim']
 		self.add_type_bias = model_config['add_type_bias']
 		self.dropout_rate = model_config['dropout_rate']
