@@ -5,7 +5,25 @@ import json
 
 import tensorflow as tf
 
+
+# Edge types to be used in the models, and their (renumbered) indices -- the data files contain
+# reserved indices for several edge types that do not occur for this problem (e.g. UNSPECIFIED)
+EDGE_TYPES = {
+	'enum_CFG_NEXT': 0,
+	'enum_LAST_READ': 1,
+	'enum_LAST_WRITE': 2,
+	'enum_COMPUTED_FROM': 3,
+	'enum_RETURNS_TO': 4,
+	'enum_FORMAL_ARG_NAME': 5,
+	'enum_FIELD': 6,
+	'enum_SYNTAX': 7,
+	'enum_NEXT_SYNTAX': 8,
+	'enum_LAST_LEXICAL_USE': 9,
+	'enum_CALLS': 10
+}
+
 class DataLoader():
+	
 	def __init__(self, data_path, data_config, vocabulary):
 		self.data_path = data_path
 		self.config = data_config
@@ -13,12 +31,16 @@ class DataLoader():
 	
 	def batcher(self, mode="train"):
 		data_path = self.get_data_path(mode)
-		file_paths = [os.path.join(data_path, f) for f in os.listdir(data_path)]
+		dataset = tf.data.Dataset.list_files(data_path + '/*.txt*', shuffle=mode != 'eval', seed=42)
+		dataset = dataset.interleave(lambda x: tf.data.TextLineDataset(x).shuffle(buffer_size=1000) if mode == 'train' else tf.data.TextLineDataset(x), cycle_length=4, block_length=16)
+		dataset = dataset.prefetch(1)
 		if mode == "train":
-			random.shuffle(file_paths)
-		ds = tf.data.Dataset.from_generator(self.to_batch, output_types=(tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32), args=(file_paths, mode))
-		if mode == "train":
-			ds = ds.repeat()
+			dataset = dataset.repeat()
+		
+		# To batch similarly-sized sequences together, we need buffering support, which TF doesn't really have.
+		# Instead, turn the dataset into a generator, run it through our own buffering function, and return a
+		# dataset of batches from that function. Could probably be more efficient, PRs welcome :)
+		ds = tf.data.Dataset.from_generator(lambda mode: self.to_batch(dataset, mode), output_types=(tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32, tf.dtypes.int32), args=(mode,))
 		ds = ds.prefetch(1)
 		return ds
 	
@@ -36,7 +58,7 @@ class DataLoader():
 	def to_sample(self, json_data):
 		def parse_edges(edges):
 			# Reorder edges to [edge type, source, target] and double edge type index to allow reverse edges
-			relations = [[2*rel[2], rel[0], rel[1]] for rel in edges]
+			relations = [[2*EDGE_TYPES[rel[3]], rel[0], rel[1]] for rel in edges if rel[3] in EDGE_TYPES]  # Note: we reindex edge types to be 0-based and filter unsupported edge types (useful for ablations)
 			relations += [[rel[0] + 1, rel[2], rel[1]] for rel in relations]  # Add reverse edges
 			return relations
 		
@@ -48,7 +70,7 @@ class DataLoader():
 		return (tokens, edges, error_location, repair_targets, repair_candidates)
 
 	# Creates Tensor batches from a set of files
-	def to_batch(self, file_paths, mode):
+	def to_batch(self, sample_generator, mode):
 		if isinstance(mode, bytes): mode = mode.decode('utf-8')
 		def sample_len(sample):
 			return len(sample[0])
@@ -90,21 +112,14 @@ class DataLoader():
 			
 			return buffer, (token_tensor, edge_tensor, error_location, repair_targets, repair_candidates)
 	
-		# Simple utility to flatten files into a stream of samples
-		def sample_gen():
-			for file_path in file_paths:
-				with open(file_path) as f:
-					json_data = f.read()
-				data = json.loads(json_data)
-				for d in data:
-					sample = self.to_sample(d)
-					if sample_len(sample) <= self.config['max_sequence_length']:
-						yield sample
-		
 		# Keep samples in a buffer that is (ideally) much larger than the batch size to allow efficient batching
 		buffer = []
 		num_samples = 0
-		for sample in sample_gen():
+		for line in sample_generator:
+			json_sample = json.loads(line.numpy())
+			sample = self.to_sample(json_sample)
+			if sample_len(sample) > self.config['max_sequence_length']:
+				continue
 			buffer.append(sample)
 			num_samples += 1
 			if mode == 'dev' and num_samples >= self.config['max_valid_samples']:

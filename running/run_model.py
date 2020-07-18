@@ -104,7 +104,9 @@ def evaluate(data, config, model, is_heldout=True):  # Similar to train, just wi
 		print("Testing pre-trained model on full eval data")
 	
 	losses, accs, counts = get_metrics()
+	mbs = 0
 	for batch in data.batcher(mode='dev' if is_heldout else 'eval'):
+		mbs += 1
 		tokens, edges, error_loc, repair_targets, repair_candidates = batch		
 		token_mask = tf.clip_by_value(tf.reduce_sum(tokens, -1), 0, 1)
 		
@@ -114,6 +116,10 @@ def evaluate(data, config, model, is_heldout=True):  # Similar to train, just wi
 		update_metrics(losses, accs, counts, token_mask, ls, acs, num_buggy)
 		if is_heldout and counts[0].result() > config['data']['max_valid_samples']:
 			break
+		if not is_heldout and mbs % config["training"]["print_freq"] == 0:
+			avg_losses = ["{0:.3f}".format(l.result().numpy()) for l in losses]
+			avg_accs = ["{0:.2%}".format(a.result().numpy()) for a in accs]
+			print("Testing progress: MB: {0}, seqs: {1:,}, tokens: {2:,}, loss: {3}, accs: {4}".format(mbs, counts[0].result().numpy(), counts[1].result().numpy(), ", ".join(avg_losses), ", ".join(avg_accs)))
 
 	avg_accs = [a.result().numpy() for a in accs]
 	avg_accs_str = ", ".join(["{0:.2%}".format(a) for a in avg_accs])

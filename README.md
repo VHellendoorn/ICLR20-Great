@@ -6,7 +6,7 @@ This repository will also serve as the [*public benchmark*](#benchmark) for any 
 ## Quick Start
 The modeling code is written in Python (3.6+) and uses Tensorflow (recommended 2.2.x+). For a quick setup, run `pip install -r requirements.txt`.
 
-To run training, first clone the [data repository](https://github.com/google-research-datasets/great) and note its location (lets call it `*data_dir*`). Then, from the main directory of this repository, run: `python running/run_model.py *data_dir* vocab.txt config.yml`, to train the model configuration specified in `config.yml`, periodically writing checkpoints (to `models/` and evaluation results (to `log.txt`). Both output paths can be optionally set with `-m` and `-l` respectively.
+To run training, first clone the [data repository](https://github.com/google-research-datasets/great) (I recommend cloning with `--depth=1` to save disk-space) and note its location (lets call it `*data_dir*`). Then, from the main directory of this repository, run: `python running/run_model.py *data_dir* vocab.txt config.yml`, to train the model configuration specified in `config.yml`, periodically writing checkpoints (to `models/` and evaluation results (to `log.txt`). Both output paths can be optionally set with `-m` and `-l` respectively.
 
 To customize the model configuration, you can change both the hyper-parameters for the various model types available (transformer, GREAT, GGNN, RNN) in `config.yml`, and the overall model architecture itself under `model: configuration`. For instance, to train the RNN Sandwich architecture from our paper, set the RNN and GGNN layers to reasonable values (e.g. RNN to  2 layers and the GGNN's `time_steps` to \[3, 1\] layers as in the paper) and specify the model configuration: `rnn ggnn rnn ggnn rnn`.
 
@@ -39,24 +39,27 @@ Representative architectures from each model family have been trained under the 
 - Note: RNN Sandwich models are still being benchmarked.
 
 *All accuracies are reported as: joint localization & repair accuracy (the key indicator), bug-free classification accuracy, (bug) localization accuracy, repair accuracy*
-| <sub>Model (category and variant)</sub> | <sub>Top Dev Accuracies </sub> | <sub>Test Accuracies</sub> | <sub>Run Details: top acc. step, time per step, #paramaters </sub> |<sub>Hyper-parameters: batch size, learning rate, model shape, etc.</sub> |
-|---|---|---|---|---|
+| <sub>Model (category and variant)</sub> | <sub>Test Accuracies</sub> | <sub>Run details: top dev step, time per step, #paramaters </sub> |<sub>Hyper-parameters: batch size, learning rate, model shape, etc.</sub> |
+|---|---|---|---|
 |<sub>__RNNs__</sub>
-|<sub>2L, 512h</sub>    |<sub>W.I.P.</sub> |<sub>W.I.P.</sub> |<sub>.., .., 9.68M</sub> |<sub>BS: 12.5K, LR: 1e-4, dropout 0.1</sub> |
+|<sub>2L, 512h</sub>    |<sub>52.18% (82.57%, 63.56%, 63.22%)</sub> |<sub>99, 3298s, 9.68M</sub> |<sub>BS: 12.5K, LR: 1e-4, dropout 0.1</sub> |
 |<sub>__GGNNs__</sub>
-|<sub>8L, 512h</sub>    |<sub>64.08% (90.15%, 78.29%, 75.15%)</sub> |<sub>W.I.P.</sub> |<sub>59, 2170s, 41.19M</sub> |<sub>BS: 12.5K, LR: 1e-4, steps: [3, 1, 3, 1], residuals: [0: 1+3, 1: 3}], dropout: 0.1</sub> |
+|<sub>8L, 512h</sub>    |<sub>65.38% (90.28%, 79.64%, 75.76%)</sub> |<sub>59, 2170s, 41.19M</sub> |<sub>BS: 12.5K, LR: 1e-4, steps: [3, 1, 3, 1], residuals: [0: 1+3, 1: 3}], dropout: 0.1</sub> |
 |<sub>__Sandwiches__</sub>
-|<sub>(1R 4G 1R 4G 1R), 512h</sub> |<sub>W.I.P.</sub> |<sub>W.I.P.</sub> |<sub>.., .., 43.95M</sub> |<sub>BS: 12.5K, LR: 1e-4, steps: [3, 1], residuals: [0: 1], dropout: 0.1</sub> |
+|<sub>(1R 4G 1R 4G 1R), 512h</sub> |<sub>78.29%<sup>\*</sup> (88.82%, 86.50%, 85.29%)</sub> |<sub>.., .., 43.95M</sub> |<sub>BS: 12.5K, LR: 1e-4, steps: [3, 1], residuals: [0: 1], dropout: 0.1</sub> |
 |<sub>__Transformers__</sub>
-|<sub>6L, 512h/a</sub>  |<sub>63.69% (91.20%, 71.24%, 75.11%)</sub> |<sub>W.I.P.</sub> |<sub>100, __1430s__, 26.22M</sub> |<sub>BS: 12.5K, LR: 1e-4, heads: 8, FF: 2048, dropout 0.1</sub> |
+|<sub>6L, 512h/a</sub>  |<sub>66.05% (91.70%, 73.39%, 76.79%)</sub> |<sub>100, 1430s, 26.22M</sub> |<sub>BS: 12.5K, LR: 1e-4, heads: 8, FF: 2048, dropout 0.1</sub> |
 |<sub>__GREAT__</sub>
-|<sub>6L, 512h/a</sub>  |<sub>__77.29%__ (89.23%, 85.20%, 85.34%)</sub> |<sub>W.I.P.</sub> |<sub>91, 1534s, 26.23M</sub> |<sub>BS: 12.5K, LR: 1e-4, heads: 8, FF: 2048, bias_dim: 64, dropout 0.1</sub> |
+|<sub>6L, 512h/a</sub>  |<sub>78.21% (88.98%, 86.14%, 85.85%)</sub> |<sub>91, 1534s, 26.23M</sub> |<sub>BS: 12.5K, LR: 1e-4, heads: 8, FF: 2048, bias_dim: 64, dropout 0.1</sub> |
+|<sub>10L, 512h/a</sub>  |<sub>__80.35%__ (89.72%, 87.61%, 87.41%)</sub> |<sub>100, 1957s, 38.83M</sub> |<sub>BS: 10.0K, LR: 1e-4, heads: 8, FF: 2048, bias_dim: 64, dropout 0.1</sub> |
+
+<sup>\*</sup>Tentative result at step 59; the model is not fully done training yet.
 
 Here's a plot of the learning curves (in terms of heldout loc+rep accuracy) of the various models, which closely matches their trajectories in the paper:
 
 ![benchmarks](Benchmarks.png)
 
-<sub>Note that the RNN and RNN Sandwich models are	 still training; also note that the parameter counts are rather unbalanced, which explains the slightly better performance of RNN Sandwich vs. GREAT.</sub>
+<sub>Note that the RNN Sandwich models is not yet done training.</sub>
 
 ### Configuration
 The following parameters ought to be held fixed for all models, most of which are set correctly by default in config.yml:
@@ -75,7 +78,6 @@ The following parameters ought to be held fixed for all models, most of which ar
 
 The following results and variables should be reported for each run:
 
-- The highest *joint localization & repair* accuracy reached in 100 steps (the key metric), also reporting the corresponding no-bug prediction accuracy (indicates false alarm rate), bug localization accuracy, and bug repair accuracy.
-- The same accuracies for the full 'eval' (test) dataset.
+- The highest *joint localization & repair* accuracy reached in 100 steps (the key metric) on the full 'eval' dataset, using the model that performed highest in this metric on the heldout data at training time. For completeness, please also report the corresponding no-bug prediction accuracy (indicates false alarm rate), bug localization accuracy, and bug repair accuracy (between parentheses).
 - *Details pertaining to the run*: the specific step at which that accuracy was achieved, the time taken per step, and the total number of parameters used by the model (printed at the start of training).
 - The *hyper-parameters for this model*: at least, the maximum batch size in terms of total tokens (batchers are grouped by similar sample size for efficiency -- users are encouraged to use the default (12,500) for comparability), the learning rate, and any details pertaining to the model architecture (new innovations, with paper, are encouraged!) and its dimensions.

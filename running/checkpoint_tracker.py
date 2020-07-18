@@ -20,6 +20,7 @@ class Tracker(object):
 					self.log.append((l[0], scores))
 			if best_model:
 				best = max(enumerate(self.log), key=lambda e: e[1][1][-1])[0]  # [-1] simply pulls the last accuracy value, which is the joint loc & rep accuracy
+				print("Restoring top model from step:", best + 1)
 				status = self.ckpt.restore(self.manager.checkpoints[best])
 			else:
 				status = self.ckpt.restore(self.manager.latest_checkpoint)
