@@ -35,8 +35,8 @@ Representative architectures from each model family have been trained under the 
 - GGNNs perform well from very early on, but struggle to achieve much higher accuracy over time;
 - RNNs are far behind either, and
 - GREAT outperforms GGNNs in a matter of hours, after which it takes a clear lead up to ~85% localization & repair accuracy respectively.
+- RNN Sandwich models initially easily beat both GGNNs and GREAT, but saturate sooner than GREAT and thus converge to a lower accuracy (but much higher than plain GGNNs).
 - All models retain a decently low false-alarm rate with a no-bug classification accuracy of ~90%
-- Note: RNN Sandwich models are still being benchmarked.
 
 *All accuracies are reported as: joint localization & repair accuracy (the key indicator), bug-free classification accuracy, (bug) localization accuracy, repair accuracy*
 | <sub>Model (category and variant)</sub> | <sub>Test Accuracies</sub> | <sub>Run details: top dev step, time per step, #paramaters </sub> |<sub>Hyper-parameters: batch size, learning rate, model shape, etc.</sub> |
@@ -46,20 +46,17 @@ Representative architectures from each model family have been trained under the 
 |<sub>__GGNNs__</sub>
 |<sub>8L, 512h</sub>    |<sub>65.38% (90.28%, 79.64%, 75.76%)</sub> |<sub>59, 2170s, 41.19M</sub> |<sub>BS: 12.5K, LR: 1e-4, steps: [3, 1, 3, 1], residuals: [0: 1+3, 1: 3}], dropout: 0.1</sub> |
 |<sub>__Sandwiches__</sub>
-|<sub>(1R 4G 1R 4G 1R), 512h</sub> |<sub>78.29%<sup>\*</sup> (88.82%, 86.50%, 85.29%)</sub> |<sub>.., .., 43.95M</sub> |<sub>BS: 12.5K, LR: 1e-4, steps: [3, 1], residuals: [0: 1], dropout: 0.1</sub> |
+|<sub>(1R 4G 1R 4G 1R), 512h</sub> |<sub>77.98% (88.76%, 86.09%, 85.16%)</sub> |<sub>95, 6072s, 43.95M</sub> |<sub>BS: 12.5K, LR: 1e-4, steps: [3, 1], residuals: [0: 1], dropout: 0.1</sub> |
 |<sub>__Transformers__</sub>
 |<sub>6L, 512h/a</sub>  |<sub>66.05% (91.70%, 73.39%, 76.79%)</sub> |<sub>100, 1430s, 26.22M</sub> |<sub>BS: 12.5K, LR: 1e-4, heads: 8, FF: 2048, dropout 0.1</sub> |
+|<sub>10L, 512h/a</sub>  |<sub>71.22% (90.16%, 79.00%, 80.46%)</sub> |<sub>100, 1936s, 38.82M</sub> |<sub>BS: 10.0K, LR: 1e-4, heads: 8, FF: 2048, dropout 0.1</sub> |
 |<sub>__GREAT__</sub>
 |<sub>6L, 512h/a</sub>  |<sub>78.21% (88.98%, 86.14%, 85.85%)</sub> |<sub>91, 1534s, 26.23M</sub> |<sub>BS: 12.5K, LR: 1e-4, heads: 8, FF: 2048, bias_dim: 64, dropout 0.1</sub> |
 |<sub>10L, 512h/a</sub>  |<sub>__80.35%__ (89.72%, 87.61%, 87.41%)</sub> |<sub>100, 1957s, 38.83M</sub> |<sub>BS: 10.0K, LR: 1e-4, heads: 8, FF: 2048, bias_dim: 64, dropout 0.1</sub> |
 
-<sup>\*</sup>Tentative result at step 59; the model is not fully done training yet.
-
 Here's a plot of the learning curves (in terms of heldout loc+rep accuracy) of the various models, which closely matches their trajectories in the paper:
 
 ![benchmarks](Benchmarks.png)
-
-<sub>Note that the RNN Sandwich models is not yet done training.</sub>
 
 ### Configuration
 The following parameters ought to be held fixed for all models, most of which are set correctly by default in config.yml:
