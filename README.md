@@ -12,9 +12,6 @@ To customize the model configuration, you can change both the hyper-parameters f
 
 To evaluate the trained model with the highest heldout accuracy, run: `python running/run_model.py *data_dir* vocab.txt config.yml -m *model_path* -l *log_path* -e True` (`model_path` and `log_path` are mandatory in this setting). This will run an evaluation pass on the entire 'eval' portion of the dataset and print the final losses and accuracies.
 
-## Status (07/09/2020)
-Update: as of July 9th, 2020, the data has been [released](https://github.com/google-research-datasets/great). I reconstructed the data loading & model running setup today (and fixed some bugs in the [models](#code)) and am currently running the various benchmarks from the paper. There are probably still a few small bugs in the code, but the general setup from the paper works: just modify the architecture(s) in config.yml, especially the model description under `model: configuration` to any configuration as desired (e.g. `great`, `rnn ggnn rnn ggnn`, etc.).
-
 ## Data
 The data for this project consists of up to three bugs per function for every function in the re-releasable subset of the Py150 corpus, paired with the original, non-buggy code. This data is now publicly available from [https://github.com/google-research-datasets/great](https://github.com/google-research-datasets/great).
 
