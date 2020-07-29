@@ -64,7 +64,6 @@ class VarMisuseModel(tf.keras.layers.Layer):
 				raise ValueError('Model not yet supported:', model)
 		
 		# Finally, predict a simple 2-pointer outcome from these states, and return
-		predictions = self.prediction(states)
 		predictions = tf.transpose(self.prediction(states), [0, 2, 1])  # Convert to [batch, 2, seq-length] for convenience.
 		return predictions
 	
