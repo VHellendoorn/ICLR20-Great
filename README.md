@@ -3,6 +3,11 @@ This repository contains the data and code to replicate our [ICLR 2020 paper](ht
 
 This repository will also serve as the [*public benchmark*](#benchmark) for any models of source code that address this task on our dataset. Now that the subset of our paper's data that allows public release is available (see [Status](#status)), we will retrain the models described in our work and track both their, and any newly submitted models', performance on this page.
 
+## Models (updated 04/19, 2021)
+In response to multiple requests, pre-trained models of all major categories are now released [here](https://drive.google.com/drive/folders/1nh6SjCGfhiPHymCn_hSkBFU_wfYuMtTm?usp=sharing). Each model is trained to 100 steps with hyper-parameters and performance corresponding to the benchmark table below (using the 6 layers configuration for Transformer-based architectures).
+
+At this time, checkpoints are available for the RNN, Transformer, and GREAT. Checkpoints for the GGNN and RNN-Sandwich models will be released shortly. These files are tentatively hosted on Google Drive due to their size; please create an issue if the link breaks or files are missing. I may switch them to git large file storage at a later date.
+
 ## Quick Start
 The modeling code is written in Python (3.6+) and uses Tensorflow (recommended 2.2.x+). For a quick setup, run `pip install -r requirements.txt`.
 
