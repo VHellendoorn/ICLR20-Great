@@ -32,10 +32,3 @@ class RNN(tf.keras.layers.Layer):
 			states = tf.concat([fwd, bwd], axis=-1)			
 			states = tf.nn.dropout(states, rate=real_dropout_rate)
 		return states
-	
-	# Embed inputs. Note, does not add positional encoding.
-	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int32)])
-	def embed_inputs(self, inputs):
-		states = tf.nn.embedding_lookup(self.embed, inputs)
-		states *= tf.math.sqrt(tf.cast(tf.shape(states)[-1], 'float32'))
-		return states

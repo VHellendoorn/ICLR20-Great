@@ -91,10 +91,3 @@ class GGNN(tf.keras.layers.Layer):
 		# Run GRU for each node.
 		new_states, _ = self.rnns[layer_no](messages, tf.expand_dims(in_states, 0))
 		return new_states[0]
-	
-	# Embed inputs. Note, does not add positional encoding.
-	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int32)])
-	def embed_inputs(self, inputs):
-		states = tf.nn.embedding_lookup(self.embed, inputs)
-		states *= tf.math.sqrt(tf.cast(tf.shape(states)[-1], 'float32'))
-		return states

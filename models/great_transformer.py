@@ -177,14 +177,6 @@ class Transformer(tf.keras.layers.Layer):
 			new_states = tf.nn.dropout(new_states, rate=real_dropout_rate)
 			states += new_states
 		return self.ln_out(states)
-
-	# Embed inputs. Note: applies scaling before positional encoding.
-	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None), dtype=tf.int32)])
-	def embed_inputs(self, inputs):
-		states = tf.nn.embedding_lookup(self.embed, inputs)
-		states *= tf.math.sqrt(tf.cast(tf.shape(states)[-1], 'float32'))
-		states += self.pos_enc[:tf.shape(states)[1]]
-		return states
 	
 	# Generates tokens from transformer states using the transposed embedding layer.
 	@tf.function(input_signature=[tf.TensorSpec(shape=(None, None, None), dtype=tf.float32)])
